@@ -7,10 +7,12 @@ constexpr int GPS_TX = 32;
 constexpr int GPS_BAUD = 9600;
 constexpr int GPS_DATA_HISTORY_COUNT = 60;
 
-constexpr int MODE_COUNT = 3;
-constexpr int MODE_SPEED = 0;
-constexpr int MODE_ALTITUDE = 1;
-constexpr int MODE_CLOCK = 2;
+constexpr int MODE_COUNT = 3;               // モードの数
+constexpr int MODE_SPEED = 0;               // 速度モード
+constexpr int MODE_ALTITUDE = 1;            // 高度モード
+constexpr int MODE_CLOCK = 2;               // 時計モード
+
+constexpr int AUTO_SLEEP_MS = 10 * 1000;    // 画面が非表示になるまでの時間
 
 HardwareSerial gpsSerial(2);
 TinyGPSPlus gps;
@@ -19,6 +21,9 @@ M5Canvas canvas(&M5.Lcd);
 TaskHandle_t readGpsTaskHandler;
 
 int mode = MODE_SPEED;
+
+int lastActiveMs = 0;
+bool isSleeping = false;
 
 double gpsSpeed = 0;
 double gpsAltitude = 0;
@@ -55,9 +60,31 @@ void loop()
 {
     M5.update();
 
+    // スリープ・スリープ解除処理
+    if (M5.BtnB.wasPressed())
+    {
+        if (isSleeping)
+        {
+            M5.Lcd.wakeup();
+            isSleeping = false;
+        }
+
+        lastActiveMs = millis();
+    }
+
+    if (isSleeping) return;
+
+    if (!isSleeping && millis() - lastActiveMs > AUTO_SLEEP_MS)
+    {
+        M5.Lcd.sleep();
+        isSleeping = true;
+    }
+
+    // モード切替
     if (M5.BtnA.wasPressed())
     {
         mode = (mode + 1) % MODE_COUNT;
+        lastActiveMs = millis();
     }
 
     double max, avg;
