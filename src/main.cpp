@@ -1,14 +1,16 @@
 #include <M5Unified.h>
 #include <TinyGPS++.h>
+#include "time.h"
 
 constexpr int GPS_RX = 33;
 constexpr int GPS_TX = 32;
 constexpr int GPS_BAUD = 9600;
 constexpr int GPS_DATA_HISTORY_COUNT = 60;
 
-constexpr int MODE_COUNT = 2;
+constexpr int MODE_COUNT = 3;
 constexpr int MODE_SPEED = 0;
 constexpr int MODE_ALTITUDE = 1;
+constexpr int MODE_CLOCK = 2;
 
 HardwareSerial gpsSerial(2);
 TinyGPSPlus gps;
@@ -20,6 +22,8 @@ int mode = MODE_SPEED;
 
 double gpsSpeed = 0;
 double gpsAltitude = 0;
+TinyGPSDate gpsDate = {};
+TinyGPSTime gpsTime = {};
 
 double speedHistory[GPS_DATA_HISTORY_COUNT] = {0};
 double altitudeHistory[GPS_DATA_HISTORY_COUNT] = {0};
@@ -29,6 +33,7 @@ void getMaxAndAvg(double *arr, size_t length, double *outMax, double *outAvg);
 void readGpsData(void *);
 void showSpeed(bool isValid, double speed, double max, double avg);
 void showAltitude(bool isValid, double altitude, double max, double avg);
+void showClock(bool isValid, TinyGPSDate date, TinyGPSTime time);
 
 void setup()
 {
@@ -59,14 +64,17 @@ void loop()
 
     switch (mode)
     {
-        case MODE_SPEED:
-            getMaxAndAvg(speedHistory, GPS_DATA_HISTORY_COUNT, &max, &avg);
-            showSpeed(gps.speed.isValid(), gpsSpeed, max, avg);
-            break;
-        case MODE_ALTITUDE:
-            getMaxAndAvg(altitudeHistory, GPS_DATA_HISTORY_COUNT, &max, &avg);
-            showAltitude(gps.altitude.isValid(), gpsAltitude, max, avg);
-            break;
+    case MODE_SPEED:
+        getMaxAndAvg(speedHistory, GPS_DATA_HISTORY_COUNT, &max, &avg);
+        showSpeed(gps.speed.isValid(), gpsSpeed, max, avg);
+        break;
+    case MODE_ALTITUDE:
+        getMaxAndAvg(altitudeHistory, GPS_DATA_HISTORY_COUNT, &max, &avg);
+        showAltitude(gps.altitude.isValid(), gpsAltitude, max, avg);
+        break;
+    case MODE_CLOCK:
+        bool isValid = gps.date.isValid() && gps.time.isValid();
+        showClock(isValid, gpsDate, gpsTime);
     }
 }
 
@@ -88,7 +96,8 @@ void getMaxAndAvg(double *arr, size_t length, double *outMax, double *outAvg)
         validCount++;
     }
 
-    if (validCount != 0) avg /= validCount;
+    if (validCount != 0)
+        avg /= validCount;
 
     *outMax = max;
     *outAvg = avg;
@@ -116,6 +125,12 @@ void readGpsData(void *args)
         {
             gpsSpeed = gps.speed.kmph();
             speedHistory[currentIndex] = gpsSpeed;
+        }
+
+        if (gps.date.isUpdated() || gps.time.isUpdated())
+        {
+            gpsDate = gps.date;
+            gpsTime = gps.time;
         }
 
         currentIndex = (currentIndex + 1) % GPS_DATA_HISTORY_COUNT;
@@ -205,6 +220,42 @@ void showAltitude(bool isValid, double altitude, double max, double avg)
     // 現在の高度を描画
     canvas.setTextColor(TFT_BLACK, TFT_WHITE);
     canvas.drawRightString(altitudeStr, width - 50, height / 2 - 16, &fonts::Font7);
+
+    canvas.pushSprite(0, 0);
+}
+
+void showClock(bool isValid, TinyGPSDate date, TinyGPSTime time)
+{
+    canvas.fillScreen(TFT_WHITE);
+    canvas.setCursor(0, 0);
+
+    char timeStr[8];
+    char dateStr[32];
+
+    if (isValid)
+    {
+        sprintf(timeStr, "%02d:%02d", time.hour() + 9, time.minute());
+        sprintf(dateStr, "%02d/%02d, %04d", date.month(), date.day(), date.year());
+    }
+    else
+    {
+        strcpy(timeStr, "--:--");
+        strcpy(dateStr, "--/--, ----");
+    }
+
+    auto width = canvas.width();
+    auto height = canvas.height();
+
+    // ヘッダーを描画
+    drawHeader(&canvas, "GPS CLOCK", TFT_ORANGE);
+
+    // 日付を描画
+    canvas.setTextColor(TFT_DARKGRAY, TFT_WHITE);
+    canvas.drawString(dateStr, 20, height - 20, &fonts::Font2);
+
+    // 時刻を描画
+    canvas.setTextColor(TFT_BLACK, TFT_WHITE);
+    canvas.drawCentreString(timeStr, width / 2, height / 2 - 16, &fonts::Font7);
 
     canvas.pushSprite(0, 0);
 }
