@@ -22,7 +22,7 @@ TaskHandle_t readGpsTaskHandler;
 
 int mode = MODE_SPEED;
 
-int lastActiveMs = 0;
+uint64_t lastActiveMs = 0;
 bool isSleeping = false;
 
 double gpsSpeed = 0;
@@ -60,16 +60,20 @@ void loop()
 {
     M5.update();
 
-    // スリープ・スリープ解除処理
-    if (M5.BtnB.wasPressed())
+    // モード切替・スリープ解除
+    if (M5.BtnA.wasPressed())
     {
+        lastActiveMs = millis();
+
         if (isSleeping)
         {
             M5.Lcd.wakeup();
             isSleeping = false;
         }
-
-        lastActiveMs = millis();
+        else
+        {
+            mode = (mode + 1) % MODE_COUNT;
+        }
     }
 
     if (isSleeping) return;
@@ -261,7 +265,7 @@ void showClock(bool isValid, TinyGPSDate date, TinyGPSTime time)
 
     if (isValid)
     {
-        sprintf(timeStr, "%02d:%02d", time.hour() + 9, time.minute());
+        sprintf(timeStr, "%02d:%02d", (time.hour() + 9) % 24, time.minute());
         sprintf(dateStr, "%02d/%02d, %04d", date.month(), date.day(), date.year());
     }
     else
