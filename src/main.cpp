@@ -25,6 +25,7 @@ int mode = MODE_SPEED;
 uint64_t lastActiveMs = 0;
 bool isSleeping = false;
 
+int32_t batteryLevel = 0;
 double gpsSpeed = 0;
 double gpsAltitude = 0;
 TinyGPSDate gpsDate = {};
@@ -39,6 +40,7 @@ void readGpsData(void *);
 void showSpeed(bool isValid, double speed, double max, double avg);
 void showAltitude(bool isValid, double altitude, double max, double avg);
 void showClock(bool isValid, TinyGPSDate date, TinyGPSTime time);
+void showBatteryLevel(int value);
 
 void setup()
 {
@@ -84,13 +86,6 @@ void loop()
         isSleeping = true;
     }
 
-    // モード切替
-    if (M5.BtnA.wasPressed())
-    {
-        mode = (mode + 1) % MODE_COUNT;
-        lastActiveMs = millis();
-    }
-
     double max, avg;
 
     switch (mode)
@@ -107,6 +102,10 @@ void loop()
         bool isValid = gps.date.isValid() && gps.time.isValid();
         showClock(isValid, gpsDate, gpsTime);
     }
+
+    showBatteryLevel(batteryLevel);
+
+    canvas.pushSprite(0, 0);
 }
 
 void getMaxAndAvg(double *arr, size_t length, double *outMax, double *outAvg)
@@ -138,6 +137,8 @@ void readGpsData(void *args)
 {
     while (true)
     {
+        batteryLevel = M5.Power.getBatteryLevel();
+
         while (gpsSerial.available() > 0)
         {
             if (gps.encode(gpsSerial.read()))
@@ -173,8 +174,8 @@ void readGpsData(void *args)
 void drawHeader(M5Canvas *canvas, const char *title, int color, int titleColor = TFT_WHITE)
 {
     canvas->setColor(color);
-    canvas->fillRect(0, 0, 200, 32);
-    canvas->fillCircle(200, 15, 16);
+    canvas->fillRect(0, 0, 180, 32);
+    canvas->fillCircle(180, 15, 16);
     canvas->setTextColor(titleColor, color);
     canvas->drawString(title, 10, 4, &fonts::Font4);
 }
@@ -213,8 +214,6 @@ void showSpeed(bool isValid, double speed, double max, double avg)
     // 現在の速度を描画
     canvas.setTextColor(TFT_BLACK, TFT_WHITE);
     canvas.drawRightString(speedStr, width - 85, height / 2 - 16, &fonts::Font7);
-
-    canvas.pushSprite(0, 0);
 }
 
 void showAltitude(bool isValid, double altitude, double max, double avg)
@@ -251,8 +250,6 @@ void showAltitude(bool isValid, double altitude, double max, double avg)
     // 現在の高度を描画
     canvas.setTextColor(TFT_BLACK, TFT_WHITE);
     canvas.drawRightString(altitudeStr, width - 50, height / 2 - 16, &fonts::Font7);
-
-    canvas.pushSprite(0, 0);
 }
 
 void showClock(bool isValid, TinyGPSDate date, TinyGPSTime time)
@@ -287,6 +284,19 @@ void showClock(bool isValid, TinyGPSDate date, TinyGPSTime time)
     // 時刻を描画
     canvas.setTextColor(TFT_BLACK, TFT_WHITE);
     canvas.drawCentreString(timeStr, width / 2, height / 2 - 16, &fonts::Font7);
+}
 
-    canvas.pushSprite(0, 0);
+void showBatteryLevel(int value)
+{
+    auto width = canvas.width();
+    auto height = canvas.height();
+
+    char batteryStr[8];
+    sprintf(batteryStr, "%d", value);
+
+    canvas.fillRect(width - 30, 5, 25, 12, TFT_DARKGRAY);
+    canvas.fillRect(width - 32, 7, 2, 8, TFT_DARKGRAY);
+
+    canvas.setTextColor(TFT_WHITE, TFT_DARKGREY);
+    canvas.drawCentreString(batteryStr, width - 18, 7, &fonts::Font0);
 }
